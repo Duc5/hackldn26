@@ -2,9 +2,15 @@ import importlib
 import os
 import sys
 from collections import defaultdict, deque
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+# Ensure backend root is importable even when pytest is started from repo root.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 os.environ["MONGODB_REQUIRED"] = "0"
 os.environ["SIMULATION_ENABLED"] = "1"
