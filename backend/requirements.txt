@@ -1,0 +1,8 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pyserial>=3.5
+motor>=3.4.0          # async MongoDB driver (wraps pymongo)
+pymongo>=4.7.0
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
