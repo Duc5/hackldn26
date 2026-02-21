@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+.coverage.*
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Environment and secrets
+.env
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Logs and local runtime artifacts
+*.log
+backend/*.log
+backend/*.out.log
+backend/*.err.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
