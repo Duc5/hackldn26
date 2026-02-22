@@ -25,8 +25,15 @@ class Settings(BaseSettings):
     serial_timeout: int = 2
 
     # Data collection
-    snapshot_interval: int = 60    # seconds between DB snapshots
+    snapshot_interval: int = 600    # seconds between DB desk snapshots (10 min)
+    room_snapshot_interval: int = 14_400  # seconds between room summaries (4 hours)
     history_maxlen:    int = 200   # in-memory history per desk
+
+    # Historical seeding (demo backfill)
+    history_seed_enabled: bool = True
+    history_seed_days: int = 14
+    history_seed_desk_interval_minutes: int = 10
+    history_seed_room_interval_hours: int = 4
 
     # Mock data
     jitter_interval: int = 3       # seconds between mock updates

@@ -11,8 +11,8 @@ Functions are grouped by collection:
   Snapshots
     insert_snapshot(doc)
     insert_many_snapshots(docs)
-    get_desk_snapshots(desk_id, limit, since)
-    get_room_snapshots(room_id, limit, since)
+    get_desk_snapshots(assignment_id, limit, since)
+    get_room_snapshots(assignment_ids, limit, since)
     get_latest_snapshot_per_desk()
 
   Device Registry
@@ -71,17 +71,17 @@ async def insert_many_snapshots(docs: list[dict]) -> int:
 
 
 async def get_desk_snapshots(
-    desk_id: str,
+    assignment_id: str,
     limit:   int = 100,
     since:   Optional[datetime] = None,
 ) -> list[dict]:
     """
-    Return up to `limit` snapshots for a desk, newest first.
+    Return up to `limit` snapshots for a desk assignment, newest first.
     Optionally filter to only readings after `since` (UTC datetime).
     """
     try:
         db    = get_db()
-        query: dict = {"desk_id": desk_id}
+        query: dict = {"assignment_id": assignment_id}
         if since:
             query["recorded_at"] = {"$gte": since}
         cursor = (
@@ -97,16 +97,18 @@ async def get_desk_snapshots(
 
 
 async def get_room_snapshots(
-    room_id: str,
+    assignment_ids: list[str],
     limit:   int = 500,
     since:   Optional[datetime] = None,
 ) -> list[dict]:
     """
-    Return up to `limit` snapshots for all desks in a room, newest first.
+    Return up to `limit` snapshots for a set of desk assignments, newest first.
     """
     try:
         db    = get_db()
-        query: dict = {"room_id": room_id}
+        if not assignment_ids:
+            return []
+        query: dict = {"assignment_id": {"$in": assignment_ids}}
         if since:
             query["recorded_at"] = {"$gte": since}
         cursor = (
@@ -131,8 +133,9 @@ async def get_latest_snapshot_per_desk() -> list[dict]:
         pipeline = [
             {"$sort":  {"recorded_at": DESCENDING}},
             {"$group": {
-                "_id":        "$desk_id",
+                "_id":        "$assignment_id",
                 "desk_id":    {"$first": "$desk_id"},
+                "assignment_id": {"$first": "$assignment_id"},
                 "room_id":    {"$first": "$room_id"},
                 "is_mock":    {"$first": "$is_mock"},
                 "occupied":   {"$first": "$occupied"},
@@ -150,7 +153,7 @@ async def get_latest_snapshot_per_desk() -> list[dict]:
 
 
 async def get_desk_aggregates(
-    desk_id: str,
+    assignment_id: str,
     since:   Optional[datetime] = None,
 ) -> dict:
     """
@@ -159,7 +162,7 @@ async def get_desk_aggregates(
     """
     try:
         db    = get_db()
-        match: dict = {"desk_id": desk_id}
+        match: dict = {"assignment_id": assignment_id}
         if since:
             match["recorded_at"] = {"$gte": since}
         pipeline = [
@@ -185,21 +188,23 @@ async def get_desk_aggregates(
 
 
 async def get_room_aggregates(
-    room_id: str,
+    assignment_ids: list[str],
     since:   Optional[datetime] = None,
 ) -> dict:
     """
-    Return avg noise, temp and occupancy for an entire room.
+    Return avg noise, temp and occupancy for a set of desk assignments.
     """
     try:
         db    = get_db()
-        match: dict = {"room_id": room_id}
+        if not assignment_ids:
+            return {}
+        match: dict = {"assignment_id": {"$in": assignment_ids}}
         if since:
             match["recorded_at"] = {"$gte": since}
         pipeline = [
             {"$match": match},
             {"$group": {
-                "_id":          "$room_id",
+                "_id":          "room",
                 "avg_noise":    {"$avg": "$noise_db"},
                 "max_noise":    {"$max": "$noise_db"},
                 "avg_temp":     {"$avg": "$temp_c"},
@@ -216,6 +221,62 @@ async def get_room_aggregates(
 
 
 # ─────────────────────────────────────────────────────────────
+
+async def insert_many_room_snapshots(docs: list[dict]) -> int:
+    """Bulk-insert room summary snapshots."""
+    if not docs:
+        return 0
+    try:
+        db     = get_db()
+        result = await db[Collections.ROOM_SNAPSHOTS].insert_many(docs, ordered=False)
+        return len(result.inserted_ids)
+    except Exception as exc:
+        log.error("insert_many_room_snapshots failed: %s", exc)
+        return 0
+
+
+async def get_room_snapshot_series(
+    room_id: str,
+    limit:   int = 500,
+    since:   Optional[datetime] = None,
+) -> list[dict]:
+    """Return time-series room snapshots, newest first."""
+    try:
+        db    = get_db()
+        query: dict = {"room_id": room_id}
+        if since:
+            query["recorded_at"] = {"$gte": since}
+        cursor = (
+            db[Collections.ROOM_SNAPSHOTS]
+            .find(query, {"_id": 0})
+            .sort("recorded_at", DESCENDING)
+            .limit(limit)
+        )
+        return await cursor.to_list(length=limit)
+    except Exception as exc:
+        log.error("get_room_snapshot_series failed: %s", exc)
+        return []
+
+
+async def count_snapshots() -> int:
+    """Return total snapshot document count."""
+    try:
+        db = get_db()
+        return await db[Collections.SNAPSHOTS].count_documents({})
+    except Exception as exc:
+        log.error("count_snapshots failed: %s", exc)
+        return 0
+
+
+async def count_room_snapshots() -> int:
+    """Return total room snapshot document count."""
+    try:
+        db = get_db()
+        return await db[Collections.ROOM_SNAPSHOTS].count_documents({})
+    except Exception as exc:
+        log.error("count_room_snapshots failed: %s", exc)
+        return 0
+
 # Device Registry
 # ─────────────────────────────────────────────────────────────
 

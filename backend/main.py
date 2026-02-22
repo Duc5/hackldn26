@@ -13,7 +13,8 @@ Startup sequence
   3. Seed mock desks to fill room capacity
   4. Start serial listener threads for all registered Arduinos
   5. Start mock jitter thread
-  6. Start MongoDB snapshot collector (asyncio task, runs every 60s)
+  6. Seed MongoDB history (one-time, if empty)
+  7. Start MongoDB snapshot collectors (desks every 10 min, rooms every 4 hours)
 """
 
 import asyncio
@@ -27,6 +28,8 @@ from app.core.logging import setup_logging, get_logger
 from app.db.mongo import connect_db, close_db
 from app.services import device_registry, mock_jitter, serial_reader, state
 from app.services.snapshot_collector import run_collector
+from app.services.room_snapshot_collector import run_room_collector
+from app.services.history_seed import seed_history_if_empty
 from app.api import rooms, desks, devices, analytics, health, tables, simulation
 
 setup_logging()
@@ -39,8 +42,10 @@ async def lifespan(app: FastAPI):
     log.info("SpaceSync starting up…")
 
     # 1. MongoDB
+    db_ready = False
     try:
         await connect_db()
+        db_ready = True
     except Exception as exc:
         if settings.mongodb_required:
             log.error("MongoDB connection failed and is required: %s", exc)
@@ -65,8 +70,13 @@ async def lifespan(app: FastAPI):
     # 5. Mock jitter
     mock_jitter.start()
 
-    # 6. Snapshot collector (asyncio task)
-    collector_task = asyncio.create_task(run_collector())
+    # 6. Seed historical data (one-time, if empty)
+    if db_ready:
+        await seed_history_if_empty()
+
+    # 7. Snapshot collectors (asyncio tasks)
+    collector_task = asyncio.create_task(run_collector()) if db_ready else None
+    room_collector_task = asyncio.create_task(run_room_collector()) if db_ready else None
     log.info("All services started. API ready at http://localhost:8000")
     log.info("Interactive docs: http://localhost:8000/docs")
 
@@ -74,11 +84,18 @@ async def lifespan(app: FastAPI):
 
     # ── Shutdown ─────────────────────────────────────────────
     log.info("SpaceSync shutting down…")
-    collector_task.cancel()
-    try:
-        await collector_task
-    except asyncio.CancelledError:
-        pass
+    if collector_task:
+        collector_task.cancel()
+        try:
+            await collector_task
+        except asyncio.CancelledError:
+            pass
+    if room_collector_task:
+        room_collector_task.cancel()
+        try:
+            await room_collector_task
+        except asyncio.CancelledError:
+            pass
     await close_db()
     log.info("Shutdown complete.")
 
@@ -92,7 +109,8 @@ app = FastAPI(
     description=(
         "Real-time library desk occupancy, noise & temperature.\n\n"
         "Live data is served from in-memory state (updated by Arduino serial or mock jitter).\n"
-        "Historical data is persisted to MongoDB every 60 seconds."
+        "Historical data is persisted to MongoDB every 10 minutes "
+        "(room summaries every 4 hours)."
     ),
     version="3.0.0",
     lifespan=lifespan,

@@ -19,6 +19,7 @@ from datetime import datetime
 class DeskData(BaseModel):
     """Public desk snapshot returned by the API."""
     desk_id:      str
+    assignment_id: str
     room_id:      str
     is_mock:      bool
     occupied:     int            # 0 | 1
@@ -182,6 +183,7 @@ class DeviceRegistryDoc(TypedDict):
     """
     hardware_id: str          # primary key (_id equivalent, stored as a field too)
     desk_id:     str
+    assignment_id: str
     room_id:     str
     label:       str
     last_port:   Optional[str]

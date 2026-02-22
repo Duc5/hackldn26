@@ -30,6 +30,7 @@ Key functions
 import json
 import os
 import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -114,20 +115,39 @@ async def load_registry() -> None:
     if not docs:
         docs = _load_json()
 
+    dirty_entries: list[dict] = []
+
     with _lock:
         for doc in docs:
             hw_id = doc.get("hardware_id")
             if not hw_id:
                 continue
+            assignment_id = doc.get("assignment_id") or str(uuid.uuid4())
             _registry[hw_id] = {
                 "hardware_id": hw_id,
                 "desk_id":     doc["desk_id"],
                 "room_id":     doc["room_id"],
                 "label":       doc.get("label", doc["desk_id"]),
                 "last_port":   doc.get("last_port"),
+                "assignment_id": assignment_id,
             }
+            if not doc.get("assignment_id"):
+                dirty_entries.append(dict(_registry[hw_id]))
             # Ensure the desk exists in the live state store
-            state.ensure_desk(doc["desk_id"], doc["room_id"], is_mock=False)
+            state.ensure_desk(
+                doc["desk_id"],
+                doc["room_id"],
+                is_mock=False,
+                assignment_id=_registry[hw_id]["assignment_id"],
+            )
+
+    if dirty_entries:
+        save_to_json()
+        try:
+            from app.db.repository import upsert_many_devices
+            await upsert_many_devices(dirty_entries)
+        except Exception as exc:
+            log.warning("Could not persist assignment_ids to MongoDB: %s", exc)
 
     log.info("Registry loaded: %d device(s).", len(_registry))
 
@@ -182,6 +202,7 @@ async def register(
         "room_id":     room_id,
         "label":       label or desk_id,
         "last_port":   port,
+        "assignment_id": str(uuid.uuid4()),
     }
 
     with _lock:
@@ -196,7 +217,7 @@ async def register(
         log.warning("Could not persist device to MongoDB: %s", exc)
 
     # Ensure desk in live store
-    state.ensure_desk(desk_id, room_id, is_mock=False)
+    state.ensure_desk(desk_id, room_id, is_mock=False, assignment_id=entry["assignment_id"])
 
     log.info("Registered %s → %s in %s", hardware_id, desk_id, room_id)
     return entry
@@ -231,6 +252,7 @@ async def move(
         "desk_id":   new_desk_id,
         "room_id":   new_room_id,
         "last_port": port,
+        "assignment_id": str(uuid.uuid4()),
     }
 
     with _lock:
@@ -243,7 +265,12 @@ async def move(
     except Exception as exc:
         log.warning("Could not persist device move to MongoDB: %s", exc)
 
-    state.ensure_desk(new_desk_id, new_room_id, is_mock=False)
+    state.ensure_desk(
+        new_desk_id,
+        new_room_id,
+        is_mock=False,
+        assignment_id=updated["assignment_id"],
+    )
 
     log.info(
         "Moved %s: %s/%s → %s/%s",

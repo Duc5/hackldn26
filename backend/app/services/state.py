@@ -26,6 +26,7 @@ Exports
 
 import random
 import threading
+import uuid
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Optional
@@ -38,6 +39,7 @@ log = get_logger("spacesync.state")
 
 # ─── Core stores ─────────────────────────────────────────────
 desk_store:   dict[str, dict]   = {}
+# History keyed by assignment_id to avoid mixing when desks move rooms.
 desk_history: dict[str, deque]  = defaultdict(
     lambda: deque(maxlen=settings.history_maxlen)
 )
@@ -71,18 +73,40 @@ def get_all_desks(strip_private: bool = True) -> list[dict]:
         return [dict(d) for d in desk_store.values()]
 
 
-def ensure_desk(desk_id: str, room_id: str, is_mock: bool) -> None:
+def _new_assignment_id() -> str:
+    return str(uuid.uuid4())
+
+
+def get_assignment_id(desk_id: str) -> Optional[str]:
+    with store_lock:
+        d = desk_store.get(desk_id)
+        return d.get("assignment_id") if d else None
+
+
+def ensure_desk(
+    desk_id: str,
+    room_id: str,
+    is_mock: bool,
+    assignment_id: Optional[str] = None,
+) -> None:
     """
     Create a desk entry if it doesn't exist.
     If it already exists, update room_id and is_mock (handles re-registration).
     """
     with store_lock:
         if desk_id in desk_store:
-            desk_store[desk_id]["room_id"] = room_id
-            desk_store[desk_id]["is_mock"] = is_mock
+            existing = desk_store[desk_id]
+            room_changed = existing["room_id"] != room_id
+            if assignment_id is None and room_changed:
+                assignment_id = _new_assignment_id()
+            if assignment_id is not None:
+                existing["assignment_id"] = assignment_id
+            existing["room_id"] = room_id
+            existing["is_mock"] = is_mock
             return
         desk_store[desk_id] = {
             "desk_id":      desk_id,
+            "assignment_id": assignment_id or _new_assignment_id(),
             "room_id":      room_id,
             "is_mock":      is_mock,
             "occupied":     0,
@@ -123,11 +147,17 @@ def mark_desk_mock(desk_id: str, is_mock: bool = True) -> None:
 
 def record_history(desk_id: str, reading: dict) -> None:
     """Append a reading to the in-memory history deque for a desk."""
-    desk_history[desk_id].append(reading)
+    assignment_id = get_assignment_id(desk_id)
+    if assignment_id is None:
+        return
+    desk_history[assignment_id].append(reading)
 
 
 def get_history(desk_id: str, limit: int = 50) -> list[dict]:
-    return list(desk_history.get(desk_id, []))[-limit:]
+    assignment_id = get_assignment_id(desk_id)
+    if assignment_id is None:
+        return []
+    return list(desk_history.get(assignment_id, []))[-limit:]
 
 
 # ─── Auto-ID / room slot helpers ─────────────────────────────

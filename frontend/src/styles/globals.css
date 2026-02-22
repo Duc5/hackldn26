@@ -565,9 +565,132 @@ tbody tr:focus-within {
   padding: 10px 12px;
 }
 
+
+.page-toggle {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.dashboard-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.dashboard-header {
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.dashboard-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(214, 201, 178, 0.34);
+  border: 1px solid rgba(150, 130, 105, 0.35);
+  display: grid;
+  gap: 6px;
+}
+
+.stat-card h3 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  margin: 0;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.trend-card {
+  display: grid;
+  gap: 12px;
+}
+
+.trend-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.trend-controls {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.trend-body {
+  display: grid;
+  gap: 12px;
+}
+
+.sparkline {
+  width: 100%;
+  height: 72px;
+  color: var(--accent);
+}
+
+.sparkline-empty {
+  padding: 18px;
+  border-radius: 12px;
+  background: rgba(214, 200, 176, 0.28);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.trend-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trend-stats strong {
+  font-size: var(--fs-lg);
+}
+
+.room-table-card h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  font-weight: 750;
+}
+
 @media (max-width: 980px) {
   .top-grid,
-  .content-grid {
+  .content-grid,
+  .dashboard-grid {
     grid-template-columns: 1fr;
   }
 
@@ -583,6 +706,15 @@ tbody tr:focus-within {
 
   .map-stage {
     min-height: 420px;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-controls {
+    width: 100%;
+    justify-items: start;
   }
 
   .table-node strong {

@@ -72,18 +72,21 @@ async def _collect() -> None:
         return
 
     # ── Build snapshot documents ──────────────────────────────
-    docs = [
-        {
-            "desk_id":    d["desk_id"],
-            "room_id":    d["room_id"],
-            "is_mock":    d["is_mock"],
-            "occupied":   d["occupied"],
-            "noise_db":   d["noise_db"],
-            "temp_c":     d["temp_c"],
-            "recorded_at": now,
-        }
-        for d in desks
-    ]
+    docs: list[dict] = []
+    for d in desks:
+        assignment_id = d.get("assignment_id")
+        if not assignment_id:
+            continue
+        docs.append({
+            "desk_id":       d["desk_id"],
+            "assignment_id": assignment_id,
+            "room_id":       d["room_id"],
+            "is_mock":       d["is_mock"],
+            "occupied":      d["occupied"],
+            "noise_db":      d["noise_db"],
+            "temp_c":        d["temp_c"],
+            "recorded_at":   now,
+        })
 
     inserted = await insert_many_snapshots(docs)
     log.info("Snapshot written: %d desk(s) at %s", inserted, now.isoformat())

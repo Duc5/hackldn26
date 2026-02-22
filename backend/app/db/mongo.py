@@ -31,6 +31,7 @@ _db:     motor.motor_asyncio.AsyncIOMotorDatabase | None = None
 
 class Collections:
     SNAPSHOTS        = "snapshots"
+    ROOM_SNAPSHOTS   = "room_snapshots"
     DEVICE_REGISTRY  = "device_registry"
     ROOM_EVENTS      = "room_events"
 
@@ -80,6 +81,7 @@ async def _ensure_indexes() -> None:
 
     # snapshots — query by desk/room + time range
     await db[Collections.SNAPSHOTS].create_indexes([
+        IndexModel([("assignment_id", ASCENDING), ("recorded_at", DESCENDING)]),
         IndexModel([("desk_id",    ASCENDING), ("recorded_at", DESCENDING)]),
         IndexModel([("room_id",    ASCENDING), ("recorded_at", DESCENDING)]),
         IndexModel([("recorded_at", DESCENDING)]),
@@ -88,6 +90,13 @@ async def _ensure_indexes() -> None:
         IndexModel([("recorded_at", ASCENDING)], expireAfterSeconds=2_592_000, name="ttl_30d"),
     ])
 
+
+    # room_snapshots � time-series room aggregates
+    await db[Collections.ROOM_SNAPSHOTS].create_indexes([
+        IndexModel([('room_id', ASCENDING), ('recorded_at', DESCENDING)]),
+        IndexModel([('recorded_at', DESCENDING)]),
+        IndexModel([('recorded_at', ASCENDING)], expireAfterSeconds=2_592_000, name='room_ttl_30d'),
+    ])
     # device_registry — hardware_id is unique
     await db[Collections.DEVICE_REGISTRY].create_indexes([
         IndexModel([("hardware_id", ASCENDING)], unique=True),
