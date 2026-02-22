@@ -32,4 +32,6 @@ def test_tables_contract_shape_and_ids(client):
         assert row["occupied_seats"] in (0, 1)
         assert row["available_seats"] == row["total_seats"] - row["occupied_seats"]
 
-    assert sum(row["total_seats"] for row in rows) == 98
+    assert sum(row["total_seats"] for row in rows) == 95
+    q1 = next(row for row in rows if row["table_id"] == "Q1")
+    assert q1["total_seats"] == 1

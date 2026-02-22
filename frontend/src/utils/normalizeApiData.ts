@@ -37,6 +37,8 @@ export function normalizeApiData(payload: unknown): TableData[] {
       const computedAvailable = Math.max(0, safeTotal - safeOccupied);
       const availableSeats = availableSeatsRaw ?? computedAvailable;
       const clampedAvailable = Math.max(0, Math.min(availableSeats, safeTotal));
+      const tempC = asNumber(item.temp_c ?? item.tempC);
+      const roomAvgTempC = asNumber(item.room_avg_temp_c ?? item.roomAvgTempC);
 
       return {
         table_id: tableId,
@@ -46,6 +48,8 @@ export function normalizeApiData(payload: unknown): TableData[] {
         occupied_seats: Math.max(0, Math.min(safeOccupied, safeTotal)),
         available_seats: clampedAvailable,
         status: computeStatus(clampedAvailable, safeTotal),
+        ...(tempC !== null ? { temp_c: tempC } : {}),
+        ...(roomAvgTempC !== null ? { room_avg_temp_c: roomAvgTempC } : {}),
         last_updated: String(item.last_updated ?? item.lastUpdated ?? new Date().toISOString())
       } satisfies TableData;
     })

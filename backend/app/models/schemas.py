@@ -19,12 +19,17 @@ from datetime import datetime
 class DeskData(BaseModel):
     """Public desk snapshot returned by the API."""
     desk_id:      str
+    assignment_id: str
     room_id:      str
     is_mock:      bool
     occupied:     int            # 0 | 1
     noise_db:     int            # dB
     temp_c:       float          # °C
     last_updated: Optional[str] = None   # ISO timestamp
+    sensor_distance_cm: Optional[float] = None
+    sensor_motion: Optional[int] = None
+    sensor_sound_flag: Optional[int] = None
+    sensor_sound_p2p: Optional[int] = None
 
 
 class DeskHistoryReading(BaseModel):
@@ -182,6 +187,7 @@ class DeviceRegistryDoc(TypedDict):
     """
     hardware_id: str          # primary key (_id equivalent, stored as a field too)
     desk_id:     str
+    assignment_id: str
     room_id:     str
     label:       str
     last_port:   Optional[str]

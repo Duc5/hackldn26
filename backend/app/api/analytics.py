@@ -100,8 +100,11 @@ async def db_desk_snapshots(
         /api/analytics/db/desks/desk_1?days=7&limit=500
     """
     since = _parse_since(hours, days)
-    docs  = await repository.get_desk_snapshots(desk_id, limit=limit, since=since)
-    return {"desk_id": desk_id, "count": len(docs), "snapshots": docs}
+    assignment_id = state.get_assignment_id(desk_id)
+    if not assignment_id:
+        raise HTTPException(status_code=404, detail=f"Desk '{desk_id}' not found.")
+    docs  = await repository.get_desk_snapshots(assignment_id, limit=limit, since=since)
+    return {"desk_id": desk_id, "assignment_id": assignment_id, "count": len(docs), "snapshots": docs}
 
 
 @router.get("/db/desks/{desk_id}/stats")
@@ -117,10 +120,13 @@ async def db_desk_stats(
         /api/analytics/db/desks/desk_1/stats?days=30
     """
     since = _parse_since(hours, days)
-    stats = await repository.get_desk_aggregates(desk_id, since=since)
+    assignment_id = state.get_assignment_id(desk_id)
+    if not assignment_id:
+        raise HTTPException(status_code=404, detail=f"Desk '{desk_id}' not found.")
+    stats = await repository.get_desk_aggregates(assignment_id, since=since)
     if not stats:
         raise HTTPException(status_code=404, detail=f"No DB data found for desk '{desk_id}'.")
-    return {"desk_id": desk_id, "stats": stats}
+    return {"desk_id": desk_id, "assignment_id": assignment_id, "stats": stats}
 
 
 @router.get("/db/rooms/{room_id}")
@@ -138,7 +144,9 @@ async def db_room_snapshots(
     if room_id not in ROOM_CONFIG:
         raise HTTPException(status_code=404, detail=f"Room '{room_id}' not found.")
     since = _parse_since(hours, days)
-    docs  = await repository.get_room_snapshots(room_id, limit=limit, since=since)
+    desks = state.get_desks_for_room(room_id)
+    assignment_ids = [d.get("assignment_id") for d in desks if d.get("assignment_id")]
+    docs  = await repository.get_room_snapshots(assignment_ids, limit=limit, since=since)
     return {"room_id": room_id, "count": len(docs), "snapshots": docs}
 
 
@@ -156,10 +164,31 @@ async def db_room_stats(
     if room_id not in ROOM_CONFIG:
         raise HTTPException(status_code=404, detail=f"Room '{room_id}' not found.")
     since = _parse_since(hours, days)
-    stats = await repository.get_room_aggregates(room_id, since=since)
+    desks = state.get_desks_for_room(room_id)
+    assignment_ids = [d.get("assignment_id") for d in desks if d.get("assignment_id")]
+    stats = await repository.get_room_aggregates(assignment_ids, since=since)
     if not stats:
         raise HTTPException(status_code=404, detail=f"No DB data found for room '{room_id}'.")
     return {"room_id": room_id, "stats": stats}
+
+
+@router.get("/db/rooms/{room_id}/series")
+async def db_room_series(
+    room_id: str,
+    limit:   int            = Query(500, le=5000),
+    hours:   Optional[int]  = Query(None),
+    days:    Optional[int]  = Query(None),
+):
+    """
+    Room-level summary snapshots (time series).
+
+        /api/analytics/db/rooms/room_a/series?days=14
+    """
+    if room_id not in ROOM_CONFIG:
+        raise HTTPException(status_code=404, detail=f"Room '{room_id}' not found.")
+    since = _parse_since(hours, days)
+    docs  = await repository.get_room_snapshot_series(room_id, limit=limit, since=since)
+    return {"room_id": room_id, "count": len(docs), "snapshots": docs}
 
 
 @router.get("/db/rooms/{room_id}/events")

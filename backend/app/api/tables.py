@@ -9,7 +9,7 @@ from app.services import state
 router = APIRouter(prefix="/api", tags=["Tables"])
 
 TABLE_VIEW_BY_DESK_ID: dict[str, dict[str, object]] = {
-    "desk_1": {"table_id": "Q1", "zone_name": "Quiet Zone", "zone_type": "quiet", "total_seats": 4},
+    "desk_1": {"table_id": "Q1", "zone_name": "Quiet Zone", "zone_type": "quiet", "total_seats": 1},
     "desk_2": {"table_id": "Q2", "zone_name": "Quiet Zone", "zone_type": "quiet", "total_seats": 4},
     "desk_3": {"table_id": "Q3", "zone_name": "Quiet Zone", "zone_type": "quiet", "total_seats": 2},
     "desk_4": {"table_id": "R1", "zone_name": "Reading Room", "zone_type": "mixed", "total_seats": 6},

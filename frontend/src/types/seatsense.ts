@@ -11,6 +11,8 @@ export interface TableData {
   occupied_seats: number;
   available_seats: number;
   status: TableStatus;
+  temp_c?: number;
+  room_avg_temp_c?: number;
   last_updated: string;
 }
 

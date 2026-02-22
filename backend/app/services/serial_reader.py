@@ -153,41 +153,129 @@ def _parse_and_store(line: str, desk_id: str, hardware_id: str) -> None:
     Accepted formats:
         1,40,21            →  occupied, noise_db, temp_c
         desk_1,1,40,21     →  desk name ignored — assignment comes from registry
+        sound_p2p=141,dBrel=17.0,...,occupied=1  → key=value format from ESP32
     """
-    parts = line.split(",")
-    if len(parts) == 4:
-        _, occ_raw, noise_raw, temp_raw = parts
-    elif len(parts) == 3:
-        occ_raw, noise_raw, temp_raw = parts
-    else:
-        log.debug("Malformed serial line: %r", line)
-        return
+    parsed = _parse_key_value_line(line)
+    effective_desk_id = desk_id
 
-    try:
-        occupied = int(occ_raw.strip())
-        noise_db = int(noise_raw.strip())
-        temp_c   = float(temp_raw.strip())
-    except ValueError:
-        log.debug("Could not parse values from: %r", line)
-        return
-    occupied = 1 if occupied > 0 else 0
+    sensor_extras: dict[str, object] = {}
+
+    if parsed is not None:
+        # Hackathon integration mode: ESP32 key=value stream is pinned to Q1 (desk_1).
+        # We use real occupied + dBrel, and mock temperature in backend.
+        effective_desk_id = "desk_1"
+        occupied, noise_db, temp_c, sensor_extras = parsed
+    else:
+        parts = line.split(",")
+        if len(parts) == 4:
+            _, occ_raw, noise_raw, temp_raw = parts
+        elif len(parts) == 3:
+            occ_raw, noise_raw, temp_raw = parts
+        else:
+            log.debug("Malformed serial line: %r", line)
+            return
+
+        try:
+            occupied = int(occ_raw.strip())
+            noise_db = int(noise_raw.strip())
+            temp_c   = float(temp_raw.strip())
+        except ValueError:
+            log.debug("Could not parse values from: %r", line)
+            return
+        occupied = 1 if occupied > 0 else 0
 
     # Write to live state
     try:
-        state.update_desk(desk_id, occupied=occupied, noise_db=noise_db, temp_c=temp_c, is_mock=False)
+        state.update_desk(
+            effective_desk_id,
+            occupied=occupied,
+            noise_db=noise_db,
+            temp_c=temp_c,
+            is_mock=False,
+            **sensor_extras,
+        )
     except KeyError:
-        log.warning("Desk %s not in state store — creating it.", desk_id)
+        log.warning("Desk %s not in state store — creating it.", effective_desk_id)
         entry = device_registry.get(hardware_id)
         room_id = entry["room_id"] if entry else "room_a"
-        state.ensure_desk(desk_id, room_id, is_mock=False)
-        state.update_desk(desk_id, occupied=occupied, noise_db=noise_db, temp_c=temp_c)
+        state.ensure_desk(effective_desk_id, room_id, is_mock=False)
+        state.update_desk(effective_desk_id, occupied=occupied, noise_db=noise_db, temp_c=temp_c, **sensor_extras)
 
     # Record to in-memory history
-    state.record_history(desk_id, {
+    state.record_history(effective_desk_id, {
         "ts":       datetime.utcnow().isoformat(),
         "occupied": occupied,
         "noise_db": noise_db,
         "temp_c":   temp_c,
     })
 
-    log.debug("Live update %s → occ=%d noise=%d temp=%.1f", desk_id, occupied, noise_db, temp_c)
+    log.debug("Live update %s → occ=%d noise=%d temp=%.1f", effective_desk_id, occupied, noise_db, temp_c)
+
+
+def _parse_key_value_line(line: str) -> Optional[tuple[int, int, float, dict[str, object]]]:
+    """
+    Parse ESP32 key=value serial lines like:
+      sound_p2p=141,dBrel=17.0,sound=0,motion=0,distance_cm=0.0,occupied=1
+
+    Returns:
+      (occupied, noise_db, temp_c, sensor_extras) if parsed, otherwise None
+    """
+    if "=" not in line:
+        return None
+
+    fields: dict[str, str] = {}
+    for part in line.split(","):
+        if "=" not in part:
+            return None
+        key, value = part.split("=", 1)
+        fields[key.strip()] = value.strip()
+
+    if "occupied" not in fields or "dBrel" not in fields:
+        return None
+
+    try:
+        occupied_raw = int(float(fields["occupied"]))
+        noise_db = int(round(float(fields["dBrel"])))
+    except ValueError:
+        log.debug("Could not parse key=value values from: %r", line)
+        return None
+
+    occupied = 1 if occupied_raw > 0 else 0
+
+    # Mock temperature until a real temperature sensor is available.
+    temp_c = 21.8
+    sensor_extras: dict[str, object] = {}
+
+    def parse_optional_float(key: str) -> Optional[float]:
+        raw = fields.get(key)
+        if raw is None:
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    def parse_optional_int(key: str) -> Optional[int]:
+        raw = fields.get(key)
+        if raw is None:
+            return None
+        try:
+            return int(float(raw))
+        except ValueError:
+            return None
+
+    distance_cm = parse_optional_float("distance_cm")
+    motion = parse_optional_int("motion")
+    sound_flag = parse_optional_int("sound")
+    sound_p2p = parse_optional_int("sound_p2p")
+
+    if distance_cm is not None:
+        sensor_extras["sensor_distance_cm"] = round(distance_cm, 1)
+    if motion is not None:
+        sensor_extras["sensor_motion"] = 1 if motion > 0 else 0
+    if sound_flag is not None:
+        sensor_extras["sensor_sound_flag"] = 1 if sound_flag > 0 else 0
+    if sound_p2p is not None:
+        sensor_extras["sensor_sound_p2p"] = sound_p2p
+
+    return (occupied, noise_db, temp_c, sensor_extras)

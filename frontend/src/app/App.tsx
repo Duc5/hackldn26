@@ -9,6 +9,7 @@ import { FallbackListView } from "../components/fallback/FallbackListView";
 import { LiveStatusBadge } from "../components/layout/LiveStatusBadge";
 import { LibraryMap } from "../components/map/LibraryMap";
 import { RecommendationPanel } from "../components/recommendations/RecommendationPanel";
+import { DashboardPage } from "./DashboardPage";
 import { useSeatSenseData } from "../hooks/useSeatSenseData";
 import type { StudyMode, TableData, ZoneType } from "../types/seatsense";
 import { getRecommendations, tableMatchesMode } from "../utils/recommendationEngine";
@@ -23,6 +24,7 @@ function applyZoneFilters(tables: TableData[], filters: ZoneType[]): TableData[]
 }
 
 export default function App(): JSX.Element {
+  const [activePage, setActivePage] = useState<"live" | "dashboard">("live");
   const [studyMode, setStudyMode] = useState<StudyMode>("solo");
   const [groupSize, setGroupSize] = useState<number>(3);
   const [zoneFilters, setZoneFilters] = useState<ZoneType[]>([]);
@@ -131,35 +133,60 @@ export default function App(): JSX.Element {
           <LiveStatusBadge sourceMode={sourceMode} loading={loading} error={error} lastUpdated={lastUpdated} embedded />
         </section>
 
-        {loading ? <LoadingState /> : null}
-        {error ? <ErrorBanner message="Using demo data fallback while backend reconnects." /> : null}
+        <section className="card page-toggle">
+          <div className="segmented">
+            <button
+              type="button"
+              className={activePage === "live" ? "active" : ""}
+              onClick={() => setActivePage("live")}
+            >
+              Live Map
+            </button>
+            <button
+              type="button"
+              className={activePage === "dashboard" ? "active" : ""}
+              onClick={() => setActivePage("dashboard")}
+            >
+              Analytics
+            </button>
+          </div>
+        </section>
 
-        <section className="content-grid">
-          <LibraryMap
-            tables={tables}
-            dimmedTableIds={dimmedTableIds}
-            recommendedTableIds={recommendedTableIds}
-            selectedTableId={selectedTableId}
-            onSelectTable={setSelectedTableId}
-          />
+        {activePage === "dashboard" ? (
+          <DashboardPage />
+        ) : (
+          <>
+            {loading ? <LoadingState /> : null}
+            {error ? <ErrorBanner message="Using demo data fallback while backend reconnects." /> : null}
 
-          <div className="side-stack">
-            <RecommendationPanel
-              recommendations={recommendations}
+            <section className="content-grid">
+              <LibraryMap
+                tables={tables}
+                dimmedTableIds={dimmedTableIds}
+                recommendedTableIds={recommendedTableIds}
+                selectedTableId={selectedTableId}
+                onSelectTable={setSelectedTableId}
+              />
+
+              <div className="side-stack">
+                <RecommendationPanel
+                  recommendations={recommendations}
+                  studyMode={studyMode}
+                  groupSize={groupSize}
+                  onSelectTable={setSelectedTableId}
+                />
+                <TableDetailsCard table={selectedTable} />
+              </div>
+            </section>
+
+            <FallbackListView
+              tables={filteredTables}
               studyMode={studyMode}
               groupSize={groupSize}
               onSelectTable={setSelectedTableId}
             />
-            <TableDetailsCard table={selectedTable} />
-          </div>
-        </section>
-
-        <FallbackListView
-          tables={filteredTables}
-          studyMode={studyMode}
-          groupSize={groupSize}
-          onSelectTable={setSelectedTableId}
-        />
+          </>
+        )}
       </main>
     </>
   );
