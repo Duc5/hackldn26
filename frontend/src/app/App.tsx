@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBanner } from "../components/common/ErrorBanner";
 import { LoadingState } from "../components/common/LoadingState";
 import { GroupSizeSelector } from "../components/controls/GroupSizeSelector";
@@ -6,7 +6,6 @@ import { StudyModeToggle } from "../components/controls/StudyModeToggle";
 import { ZoneFilterChips } from "../components/controls/ZoneFilterChips";
 import { TableDetailsCard } from "../components/details/TableDetailsCard";
 import { FallbackListView } from "../components/fallback/FallbackListView";
-import { Header } from "../components/layout/Header";
 import { LiveStatusBadge } from "../components/layout/LiveStatusBadge";
 import { LibraryMap } from "../components/map/LibraryMap";
 import { RecommendationPanel } from "../components/recommendations/RecommendationPanel";
@@ -60,48 +59,108 @@ export default function App(): JSX.Element {
     [tables, selectedTableId]
   );
 
+  const dashboardRef = useRef<HTMLElement | null>(null);
+  const [heroDismissed, setHeroDismissed] = useState<boolean>(false);
+
+  const scrollToDashboard = (): void => {
+    dashboardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setHeroDismissed(true);
+  };
+
+  useEffect(() => {
+    if (heroDismissed) return;
+
+    let touchStartY = 0;
+    const onWheel = (event: WheelEvent): void => {
+      if (window.scrollY > 8 || event.deltaY <= 0) return;
+      event.preventDefault();
+      scrollToDashboard();
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (window.scrollY > 8 || event.key !== "ArrowDown") return;
+      event.preventDefault();
+      scrollToDashboard();
+    };
+
+    const onTouchStart = (event: TouchEvent): void => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+    };
+
+    const onTouchEnd = (event: TouchEvent): void => {
+      if (window.scrollY > 8) return;
+      const touchEndY = event.changedTouches[0]?.clientY ?? touchStartY;
+      if (touchStartY - touchEndY > 24) scrollToDashboard();
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [heroDismissed]);
+
   return (
-    <main className="page-shell">
-      <div className="top-grid">
-        <Header />
-        <LiveStatusBadge sourceMode={sourceMode} loading={loading} error={error} lastUpdated={lastUpdated} />
-      </div>
-
-      <section className="card controls-card">
-        <StudyModeToggle value={studyMode} onChange={setStudyMode} />
-        {studyMode === "group" ? <GroupSizeSelector value={groupSize} onChange={setGroupSize} /> : null}
-        <ZoneFilterChips selected={zoneFilters} onToggle={(zone) => setZoneFilters((prev) => toggleZone(prev, zone))} />
-      </section>
-
-      {loading ? <LoadingState /> : null}
-      {error ? <ErrorBanner message="Using demo data fallback while backend reconnects." /> : null}
-
-      <section className="content-grid">
-        <LibraryMap
-          tables={tables}
-          dimmedTableIds={dimmedTableIds}
-          recommendedTableIds={recommendedTableIds}
-          selectedTableId={selectedTableId}
-          onSelectTable={setSelectedTableId}
-        />
-
-        <div className="side-stack">
-          <RecommendationPanel
-            recommendations={recommendations}
-            studyMode={studyMode}
-            groupSize={groupSize}
-            onSelectTable={setSelectedTableId}
-          />
-          <TableDetailsCard table={selectedTable} />
+    <>
+      <section className="hero-section">
+        <div className="hero-inner">
+          <h1 className="hero-title">Atmosense</h1>
+          <button className="hero-scroll" type="button" aria-label="Scroll to dashboard" onClick={scrollToDashboard}>
+            <span>Enter Dashboard</span>
+            <span className="hero-arrow" aria-hidden="true">
+              ↓
+            </span>
+          </button>
         </div>
       </section>
 
-      <FallbackListView
-        tables={filteredTables}
-        studyMode={studyMode}
-        groupSize={groupSize}
-        onSelectTable={setSelectedTableId}
-      />
-    </main>
+      <main ref={dashboardRef} className="page-shell dashboard-section">
+        <section className="card controls-card">
+          <div className="controls-main">
+            <StudyModeToggle value={studyMode} onChange={setStudyMode} />
+            {studyMode === "group" ? <GroupSizeSelector value={groupSize} onChange={setGroupSize} /> : null}
+            <ZoneFilterChips
+              selected={zoneFilters}
+              onToggle={(zone) => setZoneFilters((prev) => toggleZone(prev, zone))}
+            />
+          </div>
+          <LiveStatusBadge sourceMode={sourceMode} loading={loading} error={error} lastUpdated={lastUpdated} embedded />
+        </section>
+
+        {loading ? <LoadingState /> : null}
+        {error ? <ErrorBanner message="Using demo data fallback while backend reconnects." /> : null}
+
+        <section className="content-grid">
+          <LibraryMap
+            tables={tables}
+            dimmedTableIds={dimmedTableIds}
+            recommendedTableIds={recommendedTableIds}
+            selectedTableId={selectedTableId}
+            onSelectTable={setSelectedTableId}
+          />
+
+          <div className="side-stack">
+            <RecommendationPanel
+              recommendations={recommendations}
+              studyMode={studyMode}
+              groupSize={groupSize}
+              onSelectTable={setSelectedTableId}
+            />
+            <TableDetailsCard table={selectedTable} />
+          </div>
+        </section>
+
+        <FallbackListView
+          tables={filteredTables}
+          studyMode={studyMode}
+          groupSize={groupSize}
+          onSelectTable={setSelectedTableId}
+        />
+      </main>
+    </>
   );
 }
