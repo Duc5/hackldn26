@@ -692,6 +692,15 @@ body::after {
   letter-spacing: 0.02em;
 }
 
+.details-status-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .muted {
   color: var(--muted);
   font-size: var(--fs-sm);

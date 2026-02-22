@@ -65,6 +65,7 @@ def list_tables() -> list[TableRow]:
 
         table_temp = float(desk.get("temp_c", room_avg_temp_by_room.get(room_id, 0.0)))
         room_avg_temp = room_avg_temp_by_room.get(room_id, table_temp)
+        noise_db = int(desk.get("noise_db", 0))
 
         rows.append(
             TableRow(
@@ -75,6 +76,7 @@ def list_tables() -> list[TableRow]:
                 occupied_seats=occupied,
                 available_seats=available,
                 status=status,
+                noise_db=noise_db,
                 temp_c=round(table_temp, 1),
                 room_avg_temp_c=round(room_avg_temp, 1),
                 last_updated=str(desk.get("last_updated") or now),

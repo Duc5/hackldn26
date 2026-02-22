@@ -24,6 +24,15 @@ const OCCUPANCY_COLOR_STOPS = [
   { pct: 100, hex: "#3E2A20" }
 ] as const;
 
+const QUIET_SOUND_COLOR_STOPS = [
+  { db: 10, hex: "#DCEBDD" },
+  { db: 13, hex: "#C7E0C8" },
+  { db: 16, hex: "#E7DDBE" },
+  { db: 19, hex: "#E7C38F" },
+  { db: 22, hex: "#D88F69" },
+  { db: 25, hex: "#B45A50" }
+] as const;
+
 function zoneClass(zone: MapZone): string {
   if (zone.zone_type === "quiet") return "zone quiet";
   if (zone.zone_type === "group") return "zone group";
@@ -79,6 +88,22 @@ function interpolatedOccupancyColor(occupancyPct: number): { r: number; g: numbe
   return hexToRgb(OCCUPANCY_COLOR_STOPS[OCCUPANCY_COLOR_STOPS.length - 1].hex);
 }
 
+function interpolatedQuietSoundColor(noiseDb: number): { r: number; g: number; b: number } {
+  const db = clamp(noiseDb, QUIET_SOUND_COLOR_STOPS[0].db, QUIET_SOUND_COLOR_STOPS[QUIET_SOUND_COLOR_STOPS.length - 1].db);
+  if (db <= QUIET_SOUND_COLOR_STOPS[0].db) return hexToRgb(QUIET_SOUND_COLOR_STOPS[0].hex);
+
+  for (let i = 0; i < QUIET_SOUND_COLOR_STOPS.length - 1; i += 1) {
+    const left = QUIET_SOUND_COLOR_STOPS[i];
+    const right = QUIET_SOUND_COLOR_STOPS[i + 1];
+    if (db <= right.db) {
+      const t = (db - left.db) / (right.db - left.db);
+      return mixRgb(hexToRgb(left.hex), hexToRgb(right.hex), t);
+    }
+  }
+
+  return hexToRgb(QUIET_SOUND_COLOR_STOPS[QUIET_SOUND_COLOR_STOPS.length - 1].hex);
+}
+
 function formatZoneTemp(tables: TableData[]): string {
   if (tables.length === 0) return "--";
   const temps = tables
@@ -91,6 +116,7 @@ function formatZoneTemp(tables: TableData[]): string {
 
 function getZoneMetrics(zoneId: string, tablesByZoneId: Map<string, TableData[]>): {
   occupancyPct: number;
+  avgNoiseDb: number | null;
   avgTempLabel: string;
   zoneBackground: string;
   zoneBorder: string;
@@ -99,13 +125,26 @@ function getZoneMetrics(zoneId: string, tablesByZoneId: Map<string, TableData[]>
   zoneMutedText: string;
 } {
   const zoneTables = tablesByZoneId.get(zoneId) ?? [];
+  const quietQ1Table = zoneId === "quiet" ? zoneTables.find((table) => table.table_id === "Q1") : undefined;
   const totalSeats = zoneTables.reduce((sum, table) => sum + table.total_seats, 0);
   const occupiedSeats = zoneTables.reduce((sum, table) => sum + table.occupied_seats, 0);
+  const noiseValues = zoneTables
+    .map((table) => table.noise_db)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   const occupancyPct = totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
-  const color = interpolatedOccupancyColor(occupancyPct);
+  const avgNoiseDb = noiseValues.length > 0 ? noiseValues.reduce((sum, value) => sum + value, 0) / noiseValues.length : null;
+  const quietZoneNoiseDb =
+    zoneId === "quiet" && typeof quietQ1Table?.noise_db === "number" && Number.isFinite(quietQ1Table.noise_db)
+      ? quietQ1Table.noise_db
+      : avgNoiseDb;
+  const color =
+    zoneId === "quiet" && quietZoneNoiseDb !== null
+      ? interpolatedQuietSoundColor(quietZoneNoiseDb)
+      : interpolatedOccupancyColor(occupancyPct);
   const isDark = relativeLuminance(color) < 0.23;
   return {
     occupancyPct,
+    avgNoiseDb: quietZoneNoiseDb,
     avgTempLabel: formatZoneTemp(zoneTables),
     zoneBackground: `linear-gradient(160deg, ${rgbaString(color, 0.3)} 0%, ${rgbaString(color, 0.16)} 100%)`,
     zoneBorder: rgbaString(color, 0.5),

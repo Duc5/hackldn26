@@ -22,6 +22,7 @@ def test_tables_contract_shape_and_ids(client):
         "occupied_seats",
         "available_seats",
         "status",
+        "noise_db",
         "temp_c",
         "room_avg_temp_c",
         "last_updated",

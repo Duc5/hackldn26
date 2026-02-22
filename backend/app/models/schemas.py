@@ -52,6 +52,7 @@ class TableRow(BaseModel):
     occupied_seats: int
     available_seats: int
     status: str
+    noise_db: Optional[int] = None
     temp_c: float
     room_avg_temp_c: float
     last_updated: str
